@@ -1,0 +1,303 @@
+#%% Importando pacotes
+
+import pandas as pd #manipulação de dados em formato de dataframe
+import numpy as np #biblioteca para operações matemáticas multidimensionais
+from scipy.stats import chi2_contingency #estatística qui-quadrado e teste
+import statsmodels.api as sm #cálculo de estatísticas da tabela de contingência
+from scipy.stats.contingency import margins #cálculo manual dos resíduos padronizados
+import plotly.io as pio #biblioteca para gráficos interativos
+pio.renderers.default = 'browser' #biblioteca para gráficos interativos
+import plotly.graph_objects as go #biblioteca para gráficos interativos
+from factor_analyzer import FactorAnalyzer
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from factor_analyzer.factor_analyzer import calculate_kmo
+import pingouin as pg
+import seaborn as sns
+import numpy as np
+import matplotlib.pyplot as plt
+import pingouin as pg
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.io as pio
+pio.renderers.default = 'browser'
+import plotly.graph_objects as go
+import shapefile as shp
+import scipy.cluster.hierarchy as sch
+from sklearn.cluster import AgglomerativeClustering
+import scipy.stats as stats
+from sklearn.cluster import KMeans
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scipy.cluster.hierarchy as sch
+from sklearn.cluster import AgglomerativeClustering
+import scipy.stats as stats
+from sklearn.cluster import KMeans
+import seaborn as sns
+
+
+
+#%% Importar arquivo
+
+df = pd.read_csv('Banco Projeto.csv', sep = ';')
+
+#%% Criando dataframe somente com dados quanti
+
+df_quanti = df.drop(columns=['Name', 'Grupo', 'Sexo'])
+
+#%% Vendo quais dados estão como objeto
+
+trocar = df_quanti.select_dtypes(include='object').columns
+print(trocar)
+
+#%% transformando para float
+
+df_quanti['Peso D0'] = df_quanti['Peso D0'].str.replace(',', '.').astype(float)
+df_quanti['Peso D60'] = df_quanti['Peso D60'].str.replace(',', '.').astype(float)
+df_quanti['Peso D120'] = df_quanti['Peso D120'].str.replace(',', '.').astype(float)
+df_quanti['HBA1C D0'] = df_quanti['HBA1C D0'].str.replace(',', '.').astype(float)
+df_quanti['HBA1C D60'] = df_quanti['HBA1C D60'].str.replace(',', '.').astype(float)
+df_quanti['HBA1C D120'] = df_quanti['HBA1C D120'].str.replace(',', '.').astype(float)
+df_quanti['INS D0'] = df_quanti['INS D0'].str.replace(',', '.').astype(float)
+df_quanti['INS D60'] = df_quanti['INS D60'].str.replace(',', '.').astype(float)
+df_quanti['INS D120'] = df_quanti['INS D120'].str.replace(',', '.').astype(float)
+
+
+
+#%% deletar os vazios e resetando indice
+
+df_quanti = df_quanti.dropna()
+df_quanti = df_quanti.reset_index()
+del df_quanti['index']
+
+#%% ZScore
+
+# Muitas vezes, é importante realizar o procedimento Z-Score nas variáveis
+# Quando as variáveis estiverem em unidades de medidas distintas
+# df_quanti.iloc[:,:] = stats.zscore(df_quanti.iloc[:,:])
+
+df_quanti = stats.zscore(df_quanti)
+
+aaa  = df_quanti.describe()
+
+
+#%% Cluster Hierárquico Aglomerativo
+
+# Gerando o dendrograma 
+
+## Inicialmente, vamos utilizar: 
+## Distância euclidiana e método de encadeamento single linkgage
+
+plt.figure(figsize=(16,8))
+
+dendrogram = sch.dendrogram(sch.linkage(df_quanti,
+                                method = 'complete', 
+                                metric = 'euclidean'))
+plt.title('Dendrograma', fontsize=16)
+plt.xlabel('Pessoas', fontsize=16)
+plt.ylabel('Distância Euclidiana', fontsize=16)
+plt.axhline(y = 4.5, color = 'red', linestyle = '--')
+plt.show()
+
+# Opções para o método de encadeamento ("method"):
+    ## single
+    ## complete
+    ## average
+
+# Opções para as distâncias ("metric"):
+    ## euclidean
+    ## sqeuclidean
+    ## cityblock
+    ## chebyshev
+    ## canberra
+    ## correlation
+
+#%% Gerando a variável com a indicação do cluster no dataset
+
+## Deve ser realizada a parametrização:
+    ## Número de clusters
+    ## Medida de distância
+    ## Método de encadeamento
+    
+## Como já observamos 3 clusters pelo dendrograma, vamos selecionar "3" clusters
+## A medida de distância e o método de encadeamento são mantidos
+
+cluster_sing = AgglomerativeClustering(n_clusters = 3, metric = 'euclidean', linkage = 'single')
+indica_cluster_sing = cluster_sing.fit_predict(df_quanti)
+
+# Retorna uma lista de valores com o cluster de cada observação
+
+print(indica_cluster_sing, "\n")
+
+df_quanti['cluster_single'] = indica_cluster_sing
+
+print(df_quanti)
+
+#%% Comparando clusters resultantes por diferentes métodos de encadeamento
+
+# Complete linkage
+
+cluster_comp = AgglomerativeClustering(n_clusters = 3, metric = 'euclidean', linkage = 'complete')
+indica_cluster_comp = cluster_comp.fit_predict(df_quanti)
+
+print(indica_cluster_comp, "\n")
+
+df_quanti['cluster_complete'] = indica_cluster_comp
+
+print(df_quanti)
+
+#%% Comparando clusters resultantes por diferentes métodos de encadeamento
+
+# Average linkage
+
+cluster_avg = AgglomerativeClustering(n_clusters = 3, metric = 'euclidean', linkage = 'average')
+indica_cluster_avg = cluster_avg.fit_predict(df_quanti)
+
+print(indica_cluster_avg, "\n")
+
+df_quanti['cluster_average'] = indica_cluster_avg
+
+print(df_quanti)
+
+## Inclusive, poderiam ser alteradas as medidas de distância também
+
+#%% Cluster Não Hierárquico K-means
+
+# Considerando que identificamos 3 possíveis clusters na análise hierárquica
+
+kmeans = KMeans(n_clusters = 3, init = 'random').fit(df_quanti)
+
+#%% Para identificarmos os clusters gerados
+
+kmeans_clusters = kmeans.labels_
+
+print(kmeans_clusters)
+
+df_quanti['cluster_kmeans'] = kmeans_clusters
+
+print(df_quanti)
+
+#%% Identificando as coordenadas centróides dos clusters finais
+
+cent_finais = pd.DataFrame(kmeans.cluster_centers_)
+cent_finais.columns = df_quanti.columns
+cent_finais.index.name = 'cluster'
+cent_finais
+
+#%% Analisando o banco de dados
+
+df_quanti
+
+#%% Plotando as observações e seus centróides dos clusters
+
+plt.figure(figsize=(10,10))
+
+pred_y = kmeans.fit_predict(df_quanti)
+sns.scatterplot(x='Idade', y='Altura', data=df_quanti, hue='cluster_kmeans', palette='viridis', s=60)
+plt.scatter(cent_finais['Idade'], cent_finais['Altura'], s = 40, c = 'red', label = 'Centróides', marker="X")
+plt.title('Clusters e centróides', fontsize=16)
+plt.xlabel('Idade', fontsize=16)
+plt.ylabel('Altura', fontsize=16)
+plt.legend()
+plt.show()
+
+#%% Identificação da quantidade de clusters
+
+# Método Elbow para identificação do nº de clusters
+## Elaborado com base na "inércia": distância de cada obervação para o centróide de seu cluster
+## Quanto mais próximos entre si e do centróide, menor a inércia
+
+inercias = []
+K = range(1,df_quanti.shape[0])
+for k in K:
+    kmeanModel = KMeans(n_clusters=k).fit(df_quanti)
+    inercias.append(kmeanModel.inertia_)
+    
+plt.figure(figsize=(16,8))
+plt.plot(K, inercias, 'bx-')
+plt.axhline(y = 20, color = 'red', linestyle = '--')
+plt.xlabel('Nº Clusters', fontsize=16)
+plt.ylabel('Inércias', fontsize=16)
+plt.title('Método do Elbow', fontsize=16)
+plt.show()
+
+# Normalmente, busca-se o "cotovelo", ou seja, o ponto onde a curva "dobra"
+
+#%% Estatística F
+
+# Análise de variância de um fator:
+# As variáveis que mais contribuem para a formação de pelo menos um dos clusters
+
+def teste_f_kmeans(kmeans, dataframe):
+    
+    variaveis = dataframe.columns
+
+    centroides = pd.DataFrame(kmeans.cluster_centers_)
+    centroides.columns = dataframe.columns
+    centroides
+    
+    print("Centróides: \n", centroides ,"\n")
+
+    df = dataframe[variaveis]
+
+    unique, counts = np.unique(kmeans.labels_, return_counts=True)
+
+    dic = dict(zip(unique, counts))
+
+    qnt_clusters = kmeans.n_clusters
+
+    observacoes = len(kmeans.labels_)
+
+    df['cluster'] = kmeans.labels_
+
+    output = []
+
+    for variavel in variaveis:
+
+        dic_var={'variavel':variavel}
+
+        # variabilidade entre os grupos
+
+        variabilidade_entre_grupos = np.sum([dic[index]*np.square(observacao - df[variavel].mean()) for index, observacao in enumerate(centroides[variavel])])/(qnt_clusters - 1)
+
+        dic_var['variabilidade_entre_grupos'] = variabilidade_entre_grupos
+
+        variabilidade_dentro_dos_grupos = 0
+
+        for grupo in unique:
+
+            grupo = df[df.cluster == grupo]
+
+            variabilidade_dentro_dos_grupos += np.sum([np.square(observacao - grupo[variavel].mean()) for observacao in grupo[variavel]])/(observacoes - qnt_clusters)
+
+        dic_var['variabilidade_dentro_dos_grupos'] = variabilidade_dentro_dos_grupos
+
+        dic_var['F'] =  dic_var['variabilidade_entre_grupos']/dic_var['variabilidade_dentro_dos_grupos']
+        
+        dic_var['sig F'] =  1 - stats.f.cdf(dic_var['F'], qnt_clusters - 1, observacoes - qnt_clusters)
+
+        output.append(dic_var)
+
+    df = pd.DataFrame(output)
+    
+    print(df)
+
+    return df
+
+# Os valores da estatística F são bastante sensíveis ao tamanho da amostra
+
+output = teste_f_kmeans(kmeans,df_quanti)
+
+#%% Gráfico 3D dos clusters
+
+import plotly.express as px 
+import plotly.io as pio
+
+pio.renderers.default='browser'
+
+fig = px.scatter_3d(df_quanti, 
+                    x='Peso D0', 
+                    y='Altura', 
+                    z='Idade',
+                    color='cluster_kmeans')
+fig.show()
