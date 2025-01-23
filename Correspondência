@@ -1,0 +1,178 @@
+#%% Importando pacotes
+
+import pandas as pd #manipulação de dados em formato de dataframe
+import numpy as np #biblioteca para operações matemáticas multidimensionais
+from scipy.stats import chi2_contingency #estatística qui-quadrado e teste
+import statsmodels.api as sm #cálculo de estatísticas da tabela de contingência
+from scipy.stats.contingency import margins #cálculo manual dos resíduos padronizados
+import plotly.io as pio #biblioteca para gráficos interativos
+pio.renderers.default = 'browser' #biblioteca para gráficos interativos
+import plotly.graph_objects as go #biblioteca para gráficos interativos
+from factor_analyzer import FactorAnalyzer
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from factor_analyzer.factor_analyzer import calculate_bartlett_sphericity
+from factor_analyzer.factor_analyzer import calculate_kmo
+import pingouin as pg
+import seaborn as sns
+import numpy as np
+import matplotlib.pyplot as plt
+import pingouin as pg
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.io as pio
+pio.renderers.default = 'browser'
+import plotly.graph_objects as go
+import shapefile as shp
+import scipy.cluster.hierarchy as sch
+from sklearn.cluster import AgglomerativeClustering
+import scipy.stats as stats
+from sklearn.cluster import KMeans
+import seaborn as sns
+import plotly.graph_objects as go
+import plotly.io as pio
+import prince
+from scipy.stats import chi2_contingency
+
+
+#%% Importar arquivo
+
+df = pd.read_csv('Banco Projeto.csv', sep = ';')
+
+#%% deletar algumas variaveis
+
+df_quali = df
+
+print(df.columns)
+
+#%% transformando para float
+
+df_quali['Peso D0'] = df_quali['Peso D0'].str.replace(',', '.').astype(float)
+df_quali['HBA1C D0'] = df_quali['HBA1C D0'].str.replace(',', '.').astype(float)
+df_quali['INS D0'] = df_quali['INS D0'].str.replace(',', '.').astype(float)
+
+
+#%% deletar os vazios e resetando indice
+
+df_quali = df_quali.dropna()
+df_quali = df_quali.reset_index()
+del df_quali['index']
+
+#%% Criando categorias 
+
+#Categoria para Idade
+faixas = [59,69,79, float("inf")]
+categorias = ["Entre 60 e 70", "Entre 70 a 80", "Acima de 80"]
+df_quali["Idade2"] = pd.cut(df["Idade"], bins=faixas, labels=categorias)
+
+#Categoria para Idade
+faixas_alt = [149,159,169,179, 189, float("inf")]
+categorias_alt = ["Baixissimo", "Baixo", "Médio", "Alto", "Altissimo"]
+df_quali["Altura2"] = pd.cut(df["Altura"], bins=faixas_alt, labels=categorias_alt)
+
+#Categoria para Peso
+faixas_peso = [40,50,60,70,80,90, float("inf")]
+categorias_peso = ["40kg", "50kg", "60kg", "70kg", "80kg", "90kg"]
+df_quali["Peso2"] = pd.cut(df_quali["Peso D0"], bins=faixas_peso, labels=categorias_peso)
+
+#Categoria para HB1AC
+faixas_hemo = [4.5,5.0,5.5,6.0,6.5,7.0, float("inf")]
+categorias_hemo = ["Baixo", "Baissiximo", "Medio", "Alto", "Muito Alto", "Altissimo"]
+df_quali["Hemo2"] = pd.cut(df_quali["HBA1C D0"], bins=faixas_hemo, labels=categorias_hemo)
+
+
+#Categoria para Insulina
+faixas_insu = [1,5,7,10, float("inf")]
+categorias_insu = ["Baixo", "Médio", "Alto","Altissmo"]
+df_quali["Insu2"] = pd.cut(df_quali["INS D0"], bins=faixas_insu, labels=categorias_insu)
+
+
+#%% Dropar colunas que não vai usar
+
+df_quali_select = df_quali[['Insu2','Altura2','Hemo2']]
+
+#%% Criando a tabela de contingência
+
+tabela_mca_1 = pd.crosstab(df_quali_select["Insu2"], df_quali_select["Altura2"])
+tabela_mca_2 = pd.crosstab(df_quali_select["Insu2"], df_quali_select["Hemo2"])
+tabela_mca_3 = pd.crosstab(df_quali_select["Hemo2"], df_quali_select["Altura2"])
+
+print(tabela_mca_1)
+
+#%%
+
+print(tabela_mca_2)
+
+#%%
+
+print(tabela_mca_3)
+
+#%% Analisando a significância estatística das associações (teste qui²)
+
+chi2, pvalor, df, freq_esp = chi2_contingency(tabela_mca_1)
+
+print("Associação 1")
+print(f"estatística qui²: {chi2}") # estatística qui²
+print(f"p-valor da estatística: {pvalor}") # p-valor da estatística
+print(f"graus de liberdade: {df} \n") # graus de liberdade
+
+chi2, pvalor, df, freq_esp = chi2_contingency(tabela_mca_2)
+
+print("Associação 2")
+print(f"estatística qui²: {chi2}") # estatística qui²
+print(f"p-valor da estatística: {pvalor}") # p-valor da estatística
+print(f"graus de liberdade: {df} \n") # graus de liberdade
+
+chi2, pvalor, df, freq_esp = chi2_contingency(tabela_mca_3)
+
+print("Associação 3")
+print(f"estatística qui²: {chi2}") # estatística qui²
+print(f"p-valor da estatística: {pvalor}") # p-valor da estatística
+print(f"graus de liberdade: {df}") # graus de liberdade
+
+#%% Selecionando só as variaves que interessam e passando para object, como categoria nao funciona
+
+df_quali_select = df_quali[["Altura2","Insu2","Hemo2"]]
+
+df_quali_select = df_quali_select.astype('object')
+
+#%% Elaborando a MCA 
+
+## Utiliza o método da matriz de Burt
+
+mca = prince.MCA()
+mca = mca.fit(df_quali_select)
+
+
+#%% Obtendo as coordenadas nas duas dimensões do mapa
+
+aaa = (mca.column_coordinates(df_quali_select))
+
+#%% Obtendo as coordenadas de cada um das observações
+
+print(mca.row_coordinates(df_quali_select))
+
+#%% Obtendo os eigenvalues
+
+print(mca.eigenvalues_)
+
+#%% Inércia principal total
+
+print(mca.total_inertia_)
+
+#%% Obtendo a variância
+
+print(mca.explained_inertia_)
+
+#%% Plotando o mapa perceptual
+
+mp_mca = mca.plot_coordinates(
+             X = df_quali_select.iloc[0:99,0:4],
+             figsize=(12,12),
+             show_row_points = True,
+             show_column_points = True,
+             show_row_labels=False,
+             column_points_size = 100,
+             show_column_labels = True,
+             legend_n_cols = 2)
+
+#%% Fim
